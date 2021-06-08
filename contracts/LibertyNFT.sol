@@ -7,7 +7,7 @@ import "openzeppelin-solidity/contracts/access/AccessControl.sol";
 import "openzeppelin-solidity/contracts/access/Ownable.sol";
 import "openzeppelin-solidity/contracts/math/SafeMath.sol";
 
-contract ArtworkNFT is ERC721Pausable, AccessControl, Ownable {
+contract LibertyNFT is ERC721Pausable, AccessControl, Ownable {
     using SafeMath for uint256;
 
     uint256 constant public minimumStep = 10;
@@ -87,9 +87,9 @@ contract ArtworkNFT is ERC721Pausable, AccessControl, Ownable {
     }
 
     function markAsUsed(uint256 index, uint256 startX, uint256 startY, uint256 xLength, uint256 yLength) internal {
-        for (uint256 x = startX; x< startX.add(xLength);x=x+minimumStep) {
-            for (uint256 y = startY; y< startY.add(yLength);y=y+minimumStep) {
-                bool[100][100] storage pixelArray = libertyMap[index];
+        bool[100][100] storage pixelArray = libertyMap[index];
+        for (uint256 x = startX; x < startX.add(xLength); x = x + minimumStep) {
+            for (uint256 y = startY; y < startY.add(yLength); y = y + minimumStep) {
                 pixelArray[x][y] = true;
             }
         }
@@ -97,19 +97,19 @@ contract ArtworkNFT is ERC721Pausable, AccessControl, Ownable {
 
     function validatePixel(uint256 index, uint256 startX, uint256 startY, uint256 xLength, uint256 yLength) public view returns(bool) {
         require(enableIndexMap[index], "index is not enabled yet");
-        require(startX!=0 && startY!=0 && xLength!=0 && yLength!=0,"should not be 0");
+        require(xLength!=0 && yLength!=0,"length should not be 0");
 
-        require(startX<1000 && startX.add(xLength)<=1000,"x exceed boundary");
-        require(startY<1000 && startY.add(yLength)<=1000,"y exceed boundary");
+        require(startX<1000 && startX.add(xLength)<=1000,"horizontal exceed boundary");
+        require(startY<1000 && startY.add(yLength)<=1000,"vertical exceed boundary");
 
         require(startX.mod(minimumStep)==0 &&
             startY.mod(minimumStep)==0 &&
-            xLength.mod(xLength)==0 &&
+            xLength.mod(minimumStep)==0 &&
             yLength.mod(minimumStep)==0,"pixel should align to 10");
 
-        for (uint256 x = startX; x< startX.add(xLength);x=x+minimumStep) {
-            for (uint256 y = startY; y< startY.add(yLength);y=y+minimumStep) {
-                bool[100][100] memory pixelArray = libertyMap[index];
+        bool[100][100] memory pixelArray = libertyMap[index];
+        for (uint256 x = startX; x < startX.add(xLength); x = x + minimumStep) {
+            for (uint256 y = startY; y < startY.add(yLength); y = y + minimumStep) {
                 if (pixelArray[x][y]) {
                     return false;
                 }

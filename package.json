@@ -9,9 +9,9 @@
     "testrpc": "ganache-cli --gasLimit 13000000 -e 100000 --networkId 666",
     "truffle": "truffle",
     "compile": "truffle compile",
-    "migrate": "npm run prepare-unitest && truffle migrate &&  npm run prepare-mainnet",
-    "test": "npm run prepare-unitest && truffle test && npm run prepare-mainnet",
-    "coverage": "npm run prepare-unitest && truffle run coverage --network development &&  npm run prepare-mainnet",
+    "migrate": "truffle migrate",
+    "test": "truffle test",
+    "coverage": "truffle run coverage --network development",
     "lint": "npm run lint:sol",
     "lint:sol": "solhint 'contracts/*.sol' && solhint 'contracts/**/*.sol'",
     "flatten": ""

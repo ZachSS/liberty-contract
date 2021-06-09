@@ -22,9 +22,8 @@ contract LibertyNFT is ERC721Pausable, AccessControl, Ownable {
     bytes32 public constant UPDATE_TOKEN_URI_ROLE = keccak256('UPDATE_TOKEN_URI_ROLE');
     bytes32 public constant PAUSED_ROLE = keccak256('PAUSED_ROLE');
     uint256 public nextTokenId = 1;
-    address public mintFeeAddr;
+    address public feeAddr;
     uint256 public mintFeeAmount;
-    address public modifyFeeAddr;
     uint256 public modifyFeeAmount;
 
     address public mintFeeTokenAddr;
@@ -34,7 +33,7 @@ contract LibertyNFT is ERC721Pausable, AccessControl, Ownable {
     mapping(uint256 => Liberty) public nftLibertyMap;
 
     event Burn(address indexed sender, uint256 tokenId);
-    event MintFeeAddressTransferred(address indexed previousOwner, address indexed newOwner);
+    event FeeAddressTransferred(address indexed previousOwner, address indexed newOwner);
     event SetMintFeeAmount(address indexed seller, uint256 oldMintFeeAmount, uint256 newMintFeeAmount);
     event SetModifyFeeAmount(address indexed seller, uint256 oldModifyFeeAmount, uint256 newModifyFeeAmount);
 
@@ -43,9 +42,8 @@ contract LibertyNFT is ERC721Pausable, AccessControl, Ownable {
         string memory symbol,
         address _mintFeeTokenAddr,
         address _modifyFeeTokenAddr,
-        address _mintFeeAddr,
+        address _feeAddr,
         uint256 _mintFeeAmount,
-        address _modifyFeeAddr,
         uint256 _modifyFeeAmount
     ) public ERC721(name, symbol) {
         _setupRole(DEFAULT_ADMIN_ROLE, _msgSender());
@@ -53,11 +51,10 @@ contract LibertyNFT is ERC721Pausable, AccessControl, Ownable {
         _setupRole(PAUSED_ROLE, _msgSender());
         mintFeeTokenAddr = _mintFeeTokenAddr;
         modifyFeeTokenAddr = _modifyFeeTokenAddr;
-        mintFeeAddr = _mintFeeAddr;
+        feeAddr = _feeAddr;
         mintFeeAmount = _mintFeeAmount;
-        modifyFeeAddr = _modifyFeeAddr;
         modifyFeeAmount = _modifyFeeAmount;
-        emit MintFeeAddressTransferred(address(0), mintFeeAddr);
+        emit FeeAddressTransferred(address(0), feeAddr);
         emit SetMintFeeAmount(_msgSender(), 0, mintFeeAmount);
     }
 
@@ -70,7 +67,7 @@ contract LibertyNFT is ERC721Pausable, AccessControl, Ownable {
 
     function mint(address to, string memory _tokenURI, uint256 index, uint256 startX, uint256 startY, uint256 xLength, uint256 yLength) public returns (uint256 tokenId) {
         require(validatePixel(index, startX, startY, xLength, yLength), "invalid pixel");
-        TransferHelper.safeTransferFrom(mintFeeTokenAddr, msg.sender, address(this), mintFeeAmount);
+        TransferHelper.safeTransferFrom(mintFeeTokenAddr, msg.sender, feeAddr, mintFeeAmount);
         tokenId = nextTokenId;
         _mint(to, tokenId);
         nextTokenId++;
@@ -131,6 +128,7 @@ contract LibertyNFT is ERC721Pausable, AccessControl, Ownable {
 
     function setTokenURI(uint256 tokenId, string memory tokenURI) public {
         require(_isApprovedOrOwner(_msgSender(), tokenId), 'caller is not owner nor approved');
+        TransferHelper.safeTransferFrom(modifyFeeTokenAddr, msg.sender, feeAddr, modifyFeeAmount);
         _setTokenURI(tokenId, tokenURI);
     }
 
@@ -144,10 +142,10 @@ contract LibertyNFT is ERC721Pausable, AccessControl, Ownable {
         _unpause();
     }
 
-    function transferMintFeeAddress(address _mintFeeAddr) public {
-        require(_msgSender() == mintFeeAddr, 'FORBIDDEN');
-        mintFeeAddr = _mintFeeAddr;
-        emit MintFeeAddressTransferred(_msgSender(), mintFeeAddr);
+    function transferFeeAddress(address _feeAddr) public {
+        require(_msgSender() == _feeAddr, 'FORBIDDEN');
+        feeAddr = _feeAddr;
+        emit FeeAddressTransferred(_msgSender(), _feeAddr);
     }
 
     function setMintFeeAmount(uint256 _mintFeeAmount) public onlyOwner {

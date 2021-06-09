@@ -18,9 +18,15 @@ contract LibertyNFT is ERC721Pausable, AccessControl, Ownable {
         uint256 startY;
         uint256 xLength;
         uint256 yLength;
+        uint256 createTime;
+        uint256 updateTime;
+        bool    blur;
+        uint256 govCounter;
+        bool    unsafe;
     }
     bytes32 public constant UPDATE_TOKEN_URI_ROLE = keccak256('UPDATE_TOKEN_URI_ROLE');
     bytes32 public constant PAUSED_ROLE = keccak256('PAUSED_ROLE');
+    bytes32 public constant GOVERNANCE_ROLE = keccak256('GOVERNANCE_ROLE');
     uint256 public nextTokenId = 1;
     address public feeAddr;
     uint256 public mintFeeAmount;
@@ -28,7 +34,7 @@ contract LibertyNFT is ERC721Pausable, AccessControl, Ownable {
 
     address public mintFeeTokenAddr;
     address public modifyFeeTokenAddr;
-    mapping(uint256 => bool[100][100]) public libertyMap;
+    mapping(uint256 => mapping(uint256 => mapping(uint256 => bool))) public libertyMap;
     mapping(uint256 => bool) public enableIndexMap;
     mapping(uint256 => Liberty) public nftLibertyMap;
 
@@ -49,6 +55,7 @@ contract LibertyNFT is ERC721Pausable, AccessControl, Ownable {
         _setupRole(DEFAULT_ADMIN_ROLE, _msgSender());
         _setupRole(UPDATE_TOKEN_URI_ROLE, _msgSender());
         _setupRole(PAUSED_ROLE, _msgSender());
+        _setupRole(GOVERNANCE_ROLE, _msgSender());
         mintFeeTokenAddr = _mintFeeTokenAddr;
         modifyFeeTokenAddr = _modifyFeeTokenAddr;
         feeAddr = _feeAddr;
@@ -77,17 +84,30 @@ contract LibertyNFT is ERC721Pausable, AccessControl, Ownable {
             startX:  startX,
             startY:  startY,
             xLength: xLength,
-            yLength: yLength
+            yLength: yLength,
+            createTime: block.timestamp,
+            updateTime: block.timestamp,
+            blur: false,
+            govCounter: 0,
+            unsafe: false
         });
         nftLibertyMap[tokenId] = liberty;
         markAsUsed(index, startX, startY, xLength, yLength);
     }
 
     function markAsUsed(uint256 index, uint256 startX, uint256 startY, uint256 xLength, uint256 yLength) internal {
-        bool[100][100] storage pixelArray = libertyMap[index];
+        mapping(uint256 => mapping(uint256 => bool)) storage pixelMap = libertyMap[index];
         for (uint256 x = startX; x < startX.add(xLength); x = x + minimumStep) {
             for (uint256 y = startY; y < startY.add(yLength); y = y + minimumStep) {
-                pixelArray[x][y] = true;
+                pixelMap[x][y] = true;
+            }
+        }
+    }
+    function markAsUnused(uint256 index, uint256 startX, uint256 startY, uint256 xLength, uint256 yLength) internal {
+        mapping(uint256 => mapping(uint256 => bool)) storage pixelMap = libertyMap[index];
+        for (uint256 x = startX; x < startX.add(xLength); x = x + minimumStep) {
+            for (uint256 y = startY; y < startY.add(yLength); y = y + minimumStep) {
+                pixelMap[x][y] = false;
             }
         }
     }
@@ -104,12 +124,10 @@ contract LibertyNFT is ERC721Pausable, AccessControl, Ownable {
             xLength.mod(minimumStep)==0 &&
             yLength.mod(minimumStep)==0,"pixel should align to 10");
 
-        bool[100][100] memory pixelArray = libertyMap[index];
+        mapping(uint256 => mapping(uint256 => bool)) storage pixelMap = libertyMap[index];
         for (uint256 x = startX; x < startX.add(xLength); x = x + minimumStep) {
             for (uint256 y = startY; y < startY.add(yLength); y = y + minimumStep) {
-                if (pixelArray[x][y]) {
-                    return false;
-                }
+                require(!pixelMap[x][y], "pixel overlap");
             }
         }
         return true;
@@ -118,6 +136,8 @@ contract LibertyNFT is ERC721Pausable, AccessControl, Ownable {
     function burn(uint256 tokenId) public {
         require(_isApprovedOrOwner(_msgSender(), tokenId), 'caller is not owner nor approved');
         _burn(tokenId);
+        Liberty memory liberty = nftLibertyMap[tokenId];
+        markAsUnused(liberty.index, liberty.startX, liberty.startY, liberty.xLength, liberty.yLength);
         emit Burn(_msgSender(), tokenId);
     }
 
@@ -126,10 +146,36 @@ contract LibertyNFT is ERC721Pausable, AccessControl, Ownable {
         _setBaseURI(baseURI);
     }
 
-    function setTokenURI(uint256 tokenId, string memory tokenURI) public {
+    function setTokenURI(uint256 tokenId, string memory tokenURI, bool blur) public whenNotPaused {
         require(_isApprovedOrOwner(_msgSender(), tokenId), 'caller is not owner nor approved');
         TransferHelper.safeTransferFrom(modifyFeeTokenAddr, msg.sender, feeAddr, modifyFeeAmount);
         _setTokenURI(tokenId, tokenURI);
+        Liberty storage liberty = nftLibertyMap[tokenId];
+        liberty.updateTime = block.timestamp;
+        liberty.blur = blur;
+        if (liberty.unsafe) {
+            liberty.blur = true;
+        }
+    }
+
+    function blurNFT(uint256 tokenId) public whenNotPaused {
+        require(hasRole(GOVERNANCE_ROLE, _msgSender()), 'Must have governance role');
+        Liberty storage liberty = nftLibertyMap[tokenId];
+        liberty.blur = true;
+        liberty.govCounter = liberty.govCounter + 1;
+        if (liberty.govCounter>100) {
+            liberty.unsafe = true;
+        }
+        liberty.updateTime = block.timestamp;
+    }
+
+    function resetNFT(uint256 tokenId) public {
+        require(hasRole(DEFAULT_ADMIN_ROLE, _msgSender()), 'Must have admin role');
+        Liberty storage liberty = nftLibertyMap[tokenId];
+        liberty.govCounter = 0;
+        liberty.unsafe = false;
+        liberty.blur = false;
+        liberty.updateTime = block.timestamp;
     }
 
     function pause() public whenNotPaused {
@@ -143,7 +189,7 @@ contract LibertyNFT is ERC721Pausable, AccessControl, Ownable {
     }
 
     function transferFeeAddress(address _feeAddr) public {
-        require(_msgSender() == _feeAddr, 'FORBIDDEN');
+        require(_msgSender() == feeAddr, 'FORBIDDEN');
         feeAddr = _feeAddr;
         emit FeeAddressTransferred(_msgSender(), _feeAddr);
     }

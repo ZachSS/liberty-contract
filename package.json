@@ -4,8 +4,6 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "prepare-mainnet": "",
-    "prepare-unitest": "",
     "testrpc": "ganache-cli --gasLimit 13000000 -e 100000 --networkId 666",
     "truffle": "truffle",
     "compile": "truffle compile",
@@ -14,7 +12,7 @@
     "coverage": "truffle run coverage --network development",
     "lint": "npm run lint:sol",
     "lint:sol": "solhint 'contracts/*.sol' && solhint 'contracts/**/*.sol'",
-    "flatten": ""
+    "flatten": "truffle-flattener contracts/BidNFT.sol > flatten/BidNFT.sol && truffle-flattener contracts/LibertyNFT.sol > flatten/LibertyNFT.sol "
   },
   "author": "",
   "license": "Apache License",
